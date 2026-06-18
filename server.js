@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://192.168.88.21:3000'],
+  origin: ['http://localhost:3000', 'http://192.168.88.21:3000', 'https://reminder-application-vue.onrender.com'],
   credentials: true
 }));
 app.use(express.json());
