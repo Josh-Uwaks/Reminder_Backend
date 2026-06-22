@@ -30,9 +30,10 @@ class TermiiService {
         throw new Error('TERMII_SENDER_ID is not configured in environment variables');
       }
 
-      // Format phone number
+      // Format phone number (remove + and special characters)
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
 
+      // Build payload exactly as Termii expects
       const payload = {
         api_key: this.apiKey,
         to: formattedPhone,
@@ -60,6 +61,7 @@ class TermiiService {
         }
       );
 
+      // Check response structure
       if (response.data.code === 'ok') {
         console.log('✅ SMS sent successfully:', {
           messageId: response.data.message_id,
@@ -95,9 +97,9 @@ class TermiiService {
   }
 
   /**
-   * Format phone number to international format
+   * Format phone number to international format (without +)
    * @param {string} phoneNumber - Raw phone number
-   * @returns {string} - Formatted phone number
+   * @returns {string} - Formatted phone number (e.g., 2348032034293)
    */
   formatPhoneNumber(phoneNumber) {
     // Remove any non-numeric characters except +
@@ -108,13 +110,13 @@ class TermiiService {
       cleaned = '234' + cleaned.substring(1);
     }
     
-    // If number doesn't start with +, add it
-    if (!cleaned.startsWith('+')) {
-      cleaned = '+' + cleaned;
+    // If number has +, remove it (Termii expects just the number)
+    if (cleaned.startsWith('+')) {
+      cleaned = cleaned.substring(1);
     }
     
-    // Remove any duplicate + signs
-    cleaned = cleaned.replace(/\+{2,}/g, '+');
+    // Remove any remaining + signs
+    cleaned = cleaned.replace(/\+/g, '');
     
     return cleaned;
   }
