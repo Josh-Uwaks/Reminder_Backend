@@ -1,4 +1,6 @@
+// remindme-backend/controllers/reminderController.js
 const Reminder = require('../models/Reminder');
+const termiiService = require('../services/termiiService');
 
 // @desc    Create reminder
 // @route   POST /api/reminders
@@ -39,9 +41,34 @@ const createReminder = async (req, res) => {
       phone: phone || null,
     });
 
+    // Send SMS notification immediately if SMS is enabled
+    let smsSent = false;
+    if (notificationMode === 'sms' || notificationMode === 'both') {
+      // Send notification asynchronously (don't await to not block response)
+      termiiService.sendReminderNotification(reminder, phone)
+        .then(result => {
+          if (result.success) {
+            console.log(`✅ SMS sent for reminder ${reminder._id}:`, result.messageId);
+            // Update reminder with notification status
+            Reminder.findByIdAndUpdate(reminder._id, { notified: true })
+              .catch(err => console.error('Error updating notification status:', err));
+          } else {
+            console.error(`❌ Failed to send SMS for reminder ${reminder._id}:`, result.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error sending SMS:', error);
+        });
+      smsSent = true;
+    }
+
     res.status(201).json({
       success: true,
       data: reminder,
+      message: smsSent 
+        ? 'Reminder created. SMS notification sent.' 
+        : 'Reminder created successfully.',
+      smsSent
     });
   } catch (error) {
     console.error(error);
@@ -153,6 +180,25 @@ const updateReminder = async (req, res) => {
 
     await reminder.save();
 
+    // Send SMS notification if updated to include SMS
+    if (notificationMode === 'sms' || notificationMode === 'both') {
+      if (reminder.phone) {
+        termiiService.sendReminderNotification(reminder, reminder.phone)
+          .then(result => {
+            if (result.success) {
+              console.log(`✅ SMS sent for updated reminder ${reminder._id}:`, result.messageId);
+              Reminder.findByIdAndUpdate(reminder._id, { notified: true })
+                .catch(err => console.error('Error updating notification status:', err));
+            } else {
+              console.error(`❌ Failed to send SMS for updated reminder ${reminder._id}:`, result.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error sending SMS:', error);
+          });
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: reminder,
@@ -229,6 +275,123 @@ const toggleComplete = async (req, res) => {
   }
 };
 
+// @desc    Manually send SMS notification for a reminder
+// @route   POST /api/reminders/:id/send-sms
+// @access  Private
+const sendReminderSms = async (req, res) => {
+  try {
+    const reminder = await Reminder.findOne({
+      _id: req.params.id,
+      userId: req.userId,
+    });
+
+    if (!reminder) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reminder not found',
+      });
+    }
+
+    // Check if phone number exists
+    if (!reminder.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No phone number associated with this reminder',
+      });
+    }
+
+    // Check if SMS notification is enabled
+    if (reminder.notificationMode !== 'sms' && reminder.notificationMode !== 'both') {
+      return res.status(400).json({
+        success: false,
+        message: 'SMS notification is not enabled for this reminder',
+      });
+    }
+
+    // Send SMS
+    const result = await termiiService.sendReminderNotification(reminder, reminder.phone);
+
+    if (result.success) {
+      // Update reminder with notification status
+      reminder.notified = true;
+      await reminder.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'SMS sent successfully',
+        data: {
+          messageId: result.messageId,
+          messageIdStr: result.messageIdStr,
+          balance: result.balance,
+          user: result.user
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send SMS',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Send test SMS (for testing Termii integration)
+// @route   POST /api/reminders/test-sms
+// @access  Private
+const sendTestSms = async (req, res) => {
+  try {
+    const { phoneNumber, message } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required',
+      });
+    }
+
+    const testMessage = message || 'Test message from RemindMe - Your reminder system is working!';
+    const result = await termiiService.sendSms(
+      phoneNumber,
+      testMessage,
+      'dnd'
+    );
+
+    if (result.success) {
+      return res.status(200).json({
+        success: true,
+        message: 'Test SMS sent successfully',
+        data: {
+          messageId: result.messageId,
+          messageIdStr: result.messageIdStr,
+          balance: result.balance,
+          user: result.user
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send test SMS',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createReminder,
   getReminders,
@@ -236,4 +399,6 @@ module.exports = {
   updateReminder,
   deleteReminder,
   toggleComplete,
+  sendReminderSms,
+  sendTestSms,
 };
