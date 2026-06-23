@@ -122,7 +122,7 @@ class TermiiService {
   }
 
   /**
-   * Build reminder message
+   * Build reminder message - Plain text without emojis
    * @param {Object} reminder - Reminder object
    * @returns {string} - Formatted message
    */
@@ -139,16 +139,13 @@ class TermiiService {
       hour12: true
     });
 
-    let message = `🔔 REMINDER: ${reminder.title}\n`;
-    message += `📅 Date: ${formattedDate}\n`;
-    message += `⏰ Time: ${formattedTime}\n`;
+    // Build plain text message without emojis
+    let message = `REMINDER: ${reminder.title}\n`;
+    message += `Date: ${formattedDate}\n`;
+    message += `Time: ${formattedTime}\n`;
     
     if (reminder.priority && reminder.priority !== 'low') {
-      const priorityEmojis = {
-        high: '🔴 HIGH',
-        medium: '🟡 MEDIUM'
-      };
-      message += `⚡ Priority: ${priorityEmojis[reminder.priority] || reminder.priority.toUpperCase()}\n`;
+      message += `Priority: ${reminder.priority.toUpperCase()}\n`;
     }
     
     message += `\nDon't forget! - RemindMe`;
@@ -165,7 +162,7 @@ class TermiiService {
    */
   async sendReminderNotification(reminder, phoneNumber, senderId = null) {
     const message = this.buildReminderMessage(reminder);
-    const channel = 'generic'; // Changed from 'dnd' to 'generic'
+    const channel = 'generic';
     return await this.sendSms(phoneNumber, message, channel, senderId);
   }
 }

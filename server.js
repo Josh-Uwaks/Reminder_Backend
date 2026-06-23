@@ -1,12 +1,13 @@
 // backend/server.js
 const dotenv = require('dotenv');
-dotenv.config(); // ✅ MUST BE FIRST - before any other imports
+dotenv.config();
 
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
+const schedulerService = require('./services/schedulerService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,7 +19,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Request logging (minimal)
+// Request logging
 app.use((req, res, next) => {
   console.log(`➡️  ${req.method} ${req.url}`);
   next();
@@ -43,7 +44,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start
-app.listen(PORT, () => {
+// Start server with scheduler initialization
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  
+  // Load pending reminders after database connection
+  try {
+    const count = await schedulerService.loadPendingReminders();
+    console.log(`✅ Scheduler initialized with ${count} pending reminders`);
+  } catch (error) {
+    console.error('❌ Failed to load pending reminders:', error);
+  }
 });

@@ -1,6 +1,7 @@
 // remindme-backend/controllers/reminderController.js
 const Reminder = require('../models/Reminder');
 const termiiService = require('../services/termiiService');
+const schedulerService = require('../services/schedulerService');
 
 // @desc    Create reminder
 // @route   POST /api/reminders
@@ -41,34 +42,40 @@ const createReminder = async (req, res) => {
       phone: phone || null,
     });
 
-    // Send SMS notification immediately if SMS is enabled
-    let smsSent = false;
+    // Schedule SMS notification for the reminder time
+    let smsScheduled = false;
     if (notificationMode === 'sms' || notificationMode === 'both') {
-      // Send notification asynchronously (don't await to not block response)
-      termiiService.sendReminderNotification(reminder, phone)
-        .then(result => {
-          if (result.success) {
-            console.log(`✅ SMS sent for reminder ${reminder._id}:`, result.messageId);
-            // Update reminder with notification status
-            Reminder.findByIdAndUpdate(reminder._id, { notified: true })
-              .catch(err => console.error('Error updating notification status:', err));
-          } else {
-            console.error(`❌ Failed to send SMS for reminder ${reminder._id}:`, result.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error sending SMS:', error);
-        });
-      smsSent = true;
+      // Schedule the SMS to be sent at the reminder time
+      if (new Date(datetime) > new Date()) {
+        schedulerService.scheduleReminder(reminder);
+        smsScheduled = true;
+        console.log(`📅 SMS scheduled for reminder ${reminder._id} at ${datetime}`);
+      } else {
+        // If the time is in the past, send immediately
+        console.log(`⚠️ Reminder time is in the past, sending SMS immediately`);
+        termiiService.sendReminderNotification(reminder, phone)
+          .then(result => {
+            if (result.success) {
+              console.log(`✅ SMS sent immediately for reminder ${reminder._id}`);
+              Reminder.findByIdAndUpdate(reminder._id, { notified: true })
+                .catch(err => console.error('Error updating notification status:', err));
+            } else {
+              console.error(`❌ Failed to send SMS immediately for reminder ${reminder._id}:`, result.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error sending SMS:', error);
+          });
+      }
     }
 
     res.status(201).json({
       success: true,
       data: reminder,
-      message: smsSent 
-        ? 'Reminder created. SMS notification sent.' 
+      message: smsScheduled 
+        ? 'Reminder created. SMS will be sent at the scheduled time.' 
         : 'Reminder created successfully.',
-      smsSent
+      smsScheduled
     });
   } catch (error) {
     console.error(error);
@@ -180,23 +187,20 @@ const updateReminder = async (req, res) => {
 
     await reminder.save();
 
-    // Send SMS notification if updated to include SMS
-    if (notificationMode === 'sms' || notificationMode === 'both') {
-      if (reminder.phone) {
-        termiiService.sendReminderNotification(reminder, reminder.phone)
-          .then(result => {
-            if (result.success) {
-              console.log(`✅ SMS sent for updated reminder ${reminder._id}:`, result.messageId);
-              Reminder.findByIdAndUpdate(reminder._id, { notified: true })
-                .catch(err => console.error('Error updating notification status:', err));
-            } else {
-              console.error(`❌ Failed to send SMS for updated reminder ${reminder._id}:`, result.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error sending SMS:', error);
-          });
-      }
+    // Reschedule SMS if needed
+    const hasSms = (reminder.notificationMode === 'sms' || reminder.notificationMode === 'both');
+    const hasPhone = reminder.phone !== null;
+    const isFuture = new Date(reminder.datetime) > new Date();
+    const notCompleted = !reminder.completed;
+
+    if (hasSms && hasPhone && isFuture && notCompleted) {
+      // Cancel old job and schedule new one
+      schedulerService.rescheduleReminder(reminder);
+      console.log(`🔄 Rescheduled SMS for updated reminder ${reminder._id}`);
+    } else if (!hasSms || !hasPhone || !isFuture || reminder.completed) {
+      // Cancel the job if SMS no longer applies
+      schedulerService.cancelJob(reminder._id);
+      console.log(`🗑️ Cancelled SMS job for reminder ${reminder._id}`);
     }
 
     res.status(200).json({
@@ -217,6 +221,9 @@ const updateReminder = async (req, res) => {
 // @access  Private
 const deleteReminder = async (req, res) => {
   try {
+    // Cancel scheduled job before deleting
+    schedulerService.cancelJob(req.params.id);
+    
     const reminder = await Reminder.findOneAndDelete({
       _id: req.params.id,
       userId: req.userId,
@@ -261,6 +268,22 @@ const toggleComplete = async (req, res) => {
 
     reminder.completed = !reminder.completed;
     await reminder.save();
+
+    // If completed, cancel scheduled SMS
+    if (reminder.completed) {
+      schedulerService.cancelJob(reminder._id);
+      console.log(`🗑️ Cancelled SMS job for completed reminder ${reminder._id}`);
+    } else {
+      // If uncompleted, reschedule if needed
+      const hasSms = (reminder.notificationMode === 'sms' || reminder.notificationMode === 'both');
+      const hasPhone = reminder.phone !== null;
+      const isFuture = new Date(reminder.datetime) > new Date();
+      
+      if (hasSms && hasPhone && isFuture) {
+        schedulerService.rescheduleReminder(reminder);
+        console.log(`🔄 Rescheduled SMS for uncompleted reminder ${reminder._id}`);
+      }
+    }
 
     res.status(200).json({
       success: true,
