@@ -40,13 +40,13 @@ class TermiiService {
         from: senderId || this.senderId,
         sms: message,
         type: 'plain',
-        channel: channel || this.defaultChannel || 'dnd'
+        channel: channel || this.defaultChannel || 'generic'
       };
 
       console.log('📱 Sending SMS via Termii:', {
         to: formattedPhone,
         from: senderId || this.senderId,
-        channel: channel || this.defaultChannel || 'dnd',
+        channel: channel || this.defaultChannel || 'generic',
         messageLength: message.length
       });
 
@@ -165,7 +165,7 @@ class TermiiService {
    */
   async sendReminderNotification(reminder, phoneNumber, senderId = null) {
     const message = this.buildReminderMessage(reminder);
-    const channel = 'dnd'; // Always use DND for reminders (transactional)
+    const channel = 'generic'; // Changed from 'dnd' to 'generic'
     return await this.sendSms(phoneNumber, message, channel, senderId);
   }
 }

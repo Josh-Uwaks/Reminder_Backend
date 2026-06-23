@@ -343,55 +343,6 @@ const sendReminderSms = async (req, res) => {
   }
 };
 
-// @desc    Send test SMS (for testing Termii integration)
-// @route   POST /api/reminders/test-sms
-// @access  Private
-const sendTestSms = async (req, res) => {
-  try {
-    const { phoneNumber, message } = req.body;
-
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number is required',
-      });
-    }
-
-    const testMessage = message || 'Test message from RemindMe - Your reminder system is working!';
-    const result = await termiiService.sendSms(
-      phoneNumber,
-      testMessage,
-      'dnd'
-    );
-
-    if (result.success) {
-      return res.status(200).json({
-        success: true,
-        message: 'Test SMS sent successfully',
-        data: {
-          messageId: result.messageId,
-          messageIdStr: result.messageIdStr,
-          balance: result.balance,
-          user: result.user
-        }
-      });
-    } else {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send test SMS',
-        error: result.error
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   createReminder,
   getReminders,
@@ -399,6 +350,5 @@ module.exports = {
   updateReminder,
   deleteReminder,
   toggleComplete,
-  sendReminderSms,
-  sendTestSms,
+  sendReminderSms
 };

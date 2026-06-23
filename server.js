@@ -1,12 +1,12 @@
 // backend/server.js
+const dotenv = require('dotenv');
+dotenv.config(); // ✅ MUST BE FIRST - before any other imports
+
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
