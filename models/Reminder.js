@@ -1,3 +1,4 @@
+// remindme-backend/models/Reminder.js
 const mongoose = require('mongoose');
 
 const reminderSchema = new mongoose.Schema({
@@ -38,6 +39,10 @@ const reminderSchema = new mongoose.Schema({
     default: false,
   },
   notified: {
+    type: Boolean,
+    default: false,
+  },
+  emailSent: {      
     type: Boolean,
     default: false,
   },

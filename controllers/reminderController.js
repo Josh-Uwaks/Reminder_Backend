@@ -1,6 +1,7 @@
 // remindme-backend/controllers/reminderController.js
 const Reminder = require('../models/Reminder');
 const termiiService = require('../services/termiiService');
+const emailService = require('../services/emailService');
 const schedulerService = require('../services/schedulerService');
 
 // @desc    Create reminder
@@ -44,6 +45,8 @@ const createReminder = async (req, res) => {
 
     // Schedule SMS notification for the reminder time
     let smsScheduled = false;
+    let emailScheduled = false;
+
     if (notificationMode === 'sms' || notificationMode === 'both') {
       // Schedule the SMS to be sent at the reminder time
       if (new Date(datetime) > new Date()) {
@@ -69,13 +72,36 @@ const createReminder = async (req, res) => {
       }
     }
 
+    // ⭐ NEW: Send email if email notification is enabled
+    if (notificationMode === 'email' || notificationMode === 'both') {
+      if (email) {
+        // Send email immediately (or you could schedule it)
+        emailService.sendReminderEmail(reminder, email)
+          .then(result => {
+            if (result.success) {
+              console.log(`✅ Email sent for reminder ${reminder._id}`);
+              // Update reminder to indicate email was sent
+              Reminder.findByIdAndUpdate(reminder._id, { emailSent: true })
+                .catch(err => console.error('Error updating email status:', err));
+            } else {
+              console.error(`❌ Failed to send email for reminder ${reminder._id}:`, result.error);
+            }
+          })
+          .catch(error => {
+            console.error('Error sending email:', error);
+          });
+        emailScheduled = true;
+      }
+    }
+
     res.status(201).json({
       success: true,
       data: reminder,
-      message: smsScheduled 
-        ? 'Reminder created. SMS will be sent at the scheduled time.' 
+      message: smsScheduled || emailScheduled 
+        ? `Reminder created. ${smsScheduled ? 'SMS ' : ''}${emailScheduled ? 'Email ' : ''}notification${smsScheduled && emailScheduled ? 's' : ''} will be sent.` 
         : 'Reminder created successfully.',
-      smsScheduled
+      smsScheduled,
+      emailScheduled
     });
   } catch (error) {
     console.error(error);
@@ -189,7 +215,9 @@ const updateReminder = async (req, res) => {
 
     // Reschedule SMS if needed
     const hasSms = (reminder.notificationMode === 'sms' || reminder.notificationMode === 'both');
+    const hasEmail = (reminder.notificationMode === 'email' || reminder.notificationMode === 'both');
     const hasPhone = reminder.phone !== null;
+    const hasEmailAddress = reminder.email !== null;
     const isFuture = new Date(reminder.datetime) > new Date();
     const notCompleted = !reminder.completed;
 
@@ -201,6 +229,23 @@ const updateReminder = async (req, res) => {
       // Cancel the job if SMS no longer applies
       schedulerService.cancelJob(reminder._id);
       console.log(`🗑️ Cancelled SMS job for reminder ${reminder._id}`);
+    }
+
+    // ⭐ NEW: Send email if updated to include email
+    if (hasEmail && hasEmailAddress && notCompleted) {
+      emailService.sendReminderEmail(reminder, reminder.email)
+        .then(result => {
+          if (result.success) {
+            console.log(`✅ Email sent for updated reminder ${reminder._id}`);
+            Reminder.findByIdAndUpdate(reminder._id, { emailSent: true })
+              .catch(err => console.error('Error updating email status:', err));
+          } else {
+            console.error(`❌ Failed to send email for updated reminder ${reminder._id}:`, result.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error sending email:', error);
+        });
     }
 
     res.status(200).json({
@@ -366,6 +411,73 @@ const sendReminderSms = async (req, res) => {
   }
 };
 
+// ⭐ NEW: Manually send email notification for a reminder
+// @desc    Manually send email notification for a reminder
+// @route   POST /api/reminders/:id/send-email
+// @access  Private
+const sendReminderEmail = async (req, res) => {
+  try {
+    const reminder = await Reminder.findOne({
+      _id: req.params.id,
+      userId: req.userId,
+    });
+
+    if (!reminder) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reminder not found',
+      });
+    }
+
+    // Check if email exists
+    if (!reminder.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No email address associated with this reminder',
+      });
+    }
+
+    // Check if email notification is enabled
+    if (reminder.notificationMode !== 'email' && reminder.notificationMode !== 'both') {
+      return res.status(400).json({
+        success: false,
+        message: 'Email notification is not enabled for this reminder',
+      });
+    }
+
+    // Send email
+    const result = await emailService.sendReminderEmail(reminder, reminder.email);
+
+    if (result.success) {
+      // Update reminder with email status
+      reminder.emailSent = true;
+      await reminder.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Email sent successfully',
+        data: {
+          messageId: result.messageId,
+          email: result.email,
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send email',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createReminder,
   getReminders,
@@ -373,5 +485,6 @@ module.exports = {
   updateReminder,
   deleteReminder,
   toggleComplete,
-  sendReminderSms
+  sendReminderSms,
+  sendReminderEmail,
 };

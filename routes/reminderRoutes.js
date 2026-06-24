@@ -8,7 +8,8 @@ const {
   updateReminder,
   deleteReminder,
   toggleComplete,
-  sendReminderSms
+  sendReminderSms,
+  sendReminderEmail,
 } = require('../controllers/reminderController');
 const { protect } = require('../middleware/auth');
 
@@ -29,5 +30,8 @@ router.patch('/:id/toggle', toggleComplete);
 
 // SMS routes
 router.post('/:id/send-sms', sendReminderSms);
+
+// ⭐ NEW: Email routes
+router.post('/:id/send-email', sendReminderEmail);
 
 module.exports = router;
