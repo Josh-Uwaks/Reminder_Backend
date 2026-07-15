@@ -22,10 +22,19 @@ class EmailService {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD,
       },
-      connectionTimeout: 10000,
+      // Increase timeout to prevent connection timeout
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
     });
 
-    this.verifyConnection();
+    // Don't verify on startup to avoid timeout issues
+    console.log('✅ Email transporter configured');
+    
+    // Verify in background
+    setTimeout(() => {
+      this.verifyConnection();
+    }, 1000);
   }
 
   async verifyConnection() {
@@ -41,8 +50,6 @@ class EmailService {
 
   /**
    * Build reminder email HTML - Just the message, date, and time
-   * @param {Object} reminder - Reminder object
-   * @returns {string} - HTML email content
    */
   buildReminderEmail(reminder) {
     const date = new Date(reminder.datetime);
@@ -191,9 +198,7 @@ class EmailService {
   }
 
   /**
-   * Build plain text reminder message - Clean and simple
-   * @param {Object} reminder - Reminder object
-   * @returns {string} - Plain text message
+   * Build plain text reminder message
    */
   buildPlainTextEmail(reminder) {
     const date = new Date(reminder.datetime);
@@ -214,14 +219,11 @@ class EmailService {
 
   /**
    * Send reminder email
-   * @param {Object} reminder - Reminder object
-   * @param {string} email - Recipient email
-   * @returns {Promise<Object>} - Result
    */
   async sendReminderEmail(reminder, email) {
     try {
       if (!this.transporter) {
-        throw new Error('Email service not configured. Check your environment variables.');
+        throw new Error('Email service not configured');
       }
 
       if (!email || !email.includes('@')) {
@@ -246,15 +248,12 @@ class EmailService {
       console.log('✅ Email sent successfully:', {
         messageId: info.messageId,
         to: email,
-        subject: mailOptions.subject
       });
 
       return {
         success: true,
         messageId: info.messageId,
         email: email,
-        accepted: info.accepted,
-        rejected: info.rejected,
       };
     } catch (error) {
       console.error('❌ Failed to send email:', error.message);
@@ -268,8 +267,6 @@ class EmailService {
 
   /**
    * Send a test email
-   * @param {string} email - Recipient email
-   * @returns {Promise<Object>} - Result
    */
   async sendTestEmail(email) {
     try {
@@ -354,7 +351,6 @@ class EmailService {
 
   /**
    * Get email service status
-   * @returns {Object} - Status
    */
   getStatus() {
     return {
