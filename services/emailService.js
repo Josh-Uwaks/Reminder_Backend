@@ -22,11 +22,9 @@ class EmailService {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD,
       },
-      // Optional: Add connection timeout
       connectionTimeout: 10000,
     });
 
-    // Verify connection
     this.verifyConnection();
   }
 
@@ -42,12 +40,11 @@ class EmailService {
   }
 
   /**
-   * Build reminder email HTML
+   * Build reminder email HTML - Just the message, date, and time
    * @param {Object} reminder - Reminder object
-   * @param {Object} user - User object (optional)
    * @returns {string} - HTML email content
    */
-  buildReminderEmail(reminder, user = null) {
+  buildReminderEmail(reminder) {
     const date = new Date(reminder.datetime);
     const formattedDate = date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -61,28 +58,13 @@ class EmailService {
       hour12: true
     });
 
-    const priorityColors = {
-      high: '#EF4444',
-      medium: '#F59E0B',
-      low: '#10B981'
-    };
-
-    const priorityLabels = {
-      high: '🔴 High',
-      medium: '🟡 Medium',
-      low: '🟢 Low'
-    };
-
-    const priorityColor = priorityColors[reminder.priority] || '#6B7280';
-    const priorityLabel = priorityLabels[reminder.priority] || reminder.priority;
-
     return `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Reminder Notification</title>
+          <title>Reminder</title>
           <style>
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -91,7 +73,7 @@ class EmailService {
               padding: 0;
             }
             .container {
-              max-width: 560px;
+              max-width: 480px;
               margin: 0 auto;
               padding: 40px 20px;
               background-color: #F8FAFC;
@@ -102,24 +84,13 @@ class EmailService {
               box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
               overflow: hidden;
               border-top: 4px solid #3B82F6;
-            }
-            .card-header {
-              padding: 32px 32px 0 32px;
-            }
-            .card-body {
-              padding: 24px 32px 32px 32px;
-            }
-            .card-footer {
-              padding: 16px 32px;
-              background: #F8FAFC;
-              border-top: 1px solid #E2E8F0;
-              text-align: center;
+              padding: 40px 32px;
             }
             .logo {
               display: flex;
               align-items: center;
               gap: 10px;
-              margin-bottom: 20px;
+              margin-bottom: 28px;
             }
             .logo-icon {
               width: 36px;
@@ -142,150 +113,75 @@ class EmailService {
               color: #3B82F6;
             }
             .reminder-title {
-              font-size: 24px;
+              font-size: 22px;
               font-weight: 700;
               color: #1E293B;
-              margin: 0 0 8px 0;
-            }
-            .reminder-subtitle {
-              color: #64748B;
-              font-size: 14px;
               margin: 0 0 24px 0;
+              line-height: 1.3;
             }
-            .detail-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 16px;
-              margin-bottom: 24px;
+            .divider {
+              border: none;
+              border-top: 1px solid #E2E8F0;
+              margin: 24px 0;
             }
-            .detail-item {
-              background: #F8FAFC;
-              border-radius: 8px;
-              padding: 12px 16px;
+            .detail-row {
+              display: flex;
+              align-items: flex-start;
+              margin-bottom: 16px;
+            }
+            .detail-row:last-child {
+              margin-bottom: 0;
+            }
+            .detail-icon {
+              width: 24px;
+              font-size: 18px;
+              flex-shrink: 0;
+              margin-top: 1px;
+            }
+            .detail-content {
+              flex: 1;
             }
             .detail-label {
-              font-size: 11px;
+              font-size: 12px;
               font-weight: 600;
               color: #94A3B8;
               text-transform: uppercase;
               letter-spacing: 0.05em;
-              margin-bottom: 4px;
+              margin-bottom: 2px;
             }
             .detail-value {
-              font-size: 14px;
+              font-size: 16px;
               font-weight: 500;
               color: #1E293B;
-            }
-            .priority-badge {
-              display: inline-block;
-              padding: 4px 12px;
-              border-radius: 20px;
-              font-size: 13px;
-              font-weight: 600;
-              color: white;
-              background: ${priorityColor};
-            }
-            .notification-mode {
-              display: inline-block;
-              padding: 4px 12px;
-              border-radius: 20px;
-              font-size: 13px;
-              font-weight: 500;
-              background: #EFF6FF;
-              color: #3B82F6;
-            }
-            .action-btn {
-              display: inline-block;
-              padding: 10px 24px;
-              background: #1E293B;
-              color: #FFFFFF;
-              text-decoration: none;
-              border-radius: 8px;
-              font-weight: 600;
-              font-size: 14px;
-              transition: background 0.15s;
-            }
-            .action-btn:hover {
-              background: #0F172A;
-            }
-            .footer-text {
-              color: #94A3B8;
-              font-size: 12px;
-              margin: 0;
-            }
-            .footer-text a {
-              color: #3B82F6;
-              text-decoration: none;
-            }
-            @media (max-width: 480px) {
-              .detail-grid {
-                grid-template-columns: 1fr;
-              }
-              .card-header {
-                padding: 24px 20px 0 20px;
-              }
-              .card-body {
-                padding: 20px 20px 24px 20px;
-              }
-              .reminder-title {
-                font-size: 20px;
-              }
             }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="card">
-              <div class="card-header">
-                <div class="logo">
-                  <div class="logo-icon">R</div>
-                  <span class="logo-text">Remind<span>Me</span></span>
-                </div>
-                <h1 class="reminder-title">${reminder.title}</h1>
-                <p class="reminder-subtitle">Your reminder is due soon</p>
+              <div class="logo">
+                <div class="logo-icon">R</div>
+                <span class="logo-text">Remind<span>Me</span></span>
               </div>
-              <div class="card-body">
-                <div class="detail-grid">
-                  <div class="detail-item">
-                    <div class="detail-label">📅 Date</div>
-                    <div class="detail-value">${formattedDate}</div>
-                  </div>
-                  <div class="detail-item">
-                    <div class="detail-label">⏰ Time</div>
-                    <div class="detail-value">${formattedTime}</div>
-                  </div>
-                  <div class="detail-item">
-                    <div class="detail-label">⚡ Priority</div>
-                    <div class="detail-value">
-                      <span class="priority-badge">${priorityLabel}</span>
-                    </div>
-                  </div>
-                  <div class="detail-item">
-                    <div class="detail-label">🔔 Notification</div>
-                    <div class="detail-value">
-                      <span class="notification-mode">${reminder.notificationMode.toUpperCase()}</span>
-                    </div>
-                  </div>
-                </div>
-                ${reminder.phone ? `
-                  <div style="margin-bottom: 16px; padding: 12px 16px; background: #F0FDF4; border-radius: 8px; border-left: 3px solid #10B981;">
-                    <div style="font-size: 13px; color: #059669;">
-                      📱 SMS notification will also be sent to ${reminder.phone}
-                    </div>
-                  </div>
-                ` : ''}
-                <div style="margin-top: 24px; text-align: center;">
-                  <a href="${process.env.APP_URL || 'http://localhost:3000'}" class="action-btn">
-                    View in Dashboard
-                  </a>
+              
+              <div class="reminder-title">${reminder.title}</div>
+              
+              <hr class="divider">
+              
+              <div class="detail-row">
+                <div class="detail-icon">📅</div>
+                <div class="detail-content">
+                  <div class="detail-label">Date</div>
+                  <div class="detail-value">${formattedDate}</div>
                 </div>
               </div>
-              <div class="card-footer">
-                <p class="footer-text">
-                  You're receiving this because you created a reminder on RemindMe.
-                  <br>
-                  <a href="${process.env.APP_URL || 'http://localhost:3000'}/settings">Manage notifications</a>
-                </p>
+              
+              <div class="detail-row">
+                <div class="detail-icon">⏰</div>
+                <div class="detail-content">
+                  <div class="detail-label">Time</div>
+                  <div class="detail-value">${formattedTime}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -295,7 +191,7 @@ class EmailService {
   }
 
   /**
-   * Build plain text reminder message
+   * Build plain text reminder message - Clean and simple
    * @param {Object} reminder - Reminder object
    * @returns {string} - Plain text message
    */
@@ -313,47 +209,34 @@ class EmailService {
       hour12: true
     });
 
-    let message = `REMINDER: ${reminder.title}\n\n`;
-    message += `Date: ${formattedDate}\n`;
-    message += `Time: ${formattedTime}\n`;
-    message += `Priority: ${reminder.priority.toUpperCase()}\n`;
-    message += `Notification: ${reminder.notificationMode.toUpperCase()}\n\n`;
-    message += `Don't forget your reminder!\n`;
-    message += `View it in your dashboard: ${process.env.APP_URL || 'http://localhost:3000'}`;
-
-    return message;
+    return `${reminder.title}\n\nDate: ${formattedDate}\nTime: ${formattedTime}`;
   }
 
   /**
    * Send reminder email
    * @param {Object} reminder - Reminder object
    * @param {string} email - Recipient email
-   * @param {Object} user - User object (optional)
    * @returns {Promise<Object>} - Result
    */
-  async sendReminderEmail(reminder, email, user = null) {
+  async sendReminderEmail(reminder, email) {
     try {
-      // Check if email service is configured
       if (!this.transporter) {
         throw new Error('Email service not configured. Check your environment variables.');
       }
 
-      // Validate email
       if (!email || !email.includes('@')) {
         throw new Error('Invalid email address');
       }
 
-      const htmlContent = this.buildReminderEmail(reminder, user);
+      const htmlContent = this.buildReminderEmail(reminder);
       const plainText = this.buildPlainTextEmail(reminder);
 
       const mailOptions = {
         from: process.env.EMAIL_FROM || `"RemindMe" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: `🔔 Reminder: ${reminder.title}`,
+        subject: `Reminder: ${reminder.title}`,
         text: plainText,
         html: htmlContent,
-        // Optional: Add reply-to
-        replyTo: process.env.EMAIL_REPLY_TO || process.env.EMAIL_USER,
       };
 
       console.log('📧 Sending reminder email to:', email);
@@ -384,7 +267,7 @@ class EmailService {
   }
 
   /**
-   * Send a test email (useful for testing configuration)
+   * Send a test email
    * @param {string} email - Recipient email
    * @returns {Promise<Object>} - Result
    */
@@ -400,13 +283,54 @@ class EmailService {
         subject: '✅ RemindMe Email Test',
         text: 'This is a test email from RemindMe. Your email configuration is working!',
         html: `
-          <h1 style="color: #3B82F6;">✅ Email Test Successful</h1>
-          <p>Your RemindMe email configuration is working correctly.</p>
-          <p>You can now send reminder notifications via email.</p>
-          <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 20px 0;">
-          <p style="color: #64748B; font-size: 14px;">
-            This is an automated test message from RemindMe.
-          </p>
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Email Test</title>
+              <style>
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                  background-color: #F8FAFC;
+                  margin: 0;
+                  padding: 0;
+                }
+                .container {
+                  max-width: 480px;
+                  margin: 0 auto;
+                  padding: 40px 20px;
+                }
+                .card {
+                  background: #FFFFFF;
+                  border-radius: 16px;
+                  padding: 40px 32px;
+                  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+                  border-top: 4px solid #22C55E;
+                }
+                h1 {
+                  color: #22C55E;
+                  font-size: 24px;
+                  margin: 0 0 12px 0;
+                }
+                p {
+                  color: #1E293B;
+                  font-size: 15px;
+                  line-height: 1.6;
+                  margin: 0 0 16px 0;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="card">
+                  <h1>✅ Email Test Successful</h1>
+                  <p>Your RemindMe email configuration is working correctly.</p>
+                  <p>You can now send reminder notifications via email.</p>
+                </div>
+              </div>
+            </body>
+          </html>
         `,
       };
 

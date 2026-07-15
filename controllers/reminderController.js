@@ -47,61 +47,35 @@ const createReminder = async (req, res) => {
     let smsScheduled = false;
     let emailScheduled = false;
 
+    // Schedule SMS if needed
     if (notificationMode === 'sms' || notificationMode === 'both') {
-      // Schedule the SMS to be sent at the reminder time
       if (new Date(datetime) > new Date()) {
         schedulerService.scheduleReminder(reminder);
         smsScheduled = true;
         console.log(`📅 SMS scheduled for reminder ${reminder._id} at ${datetime}`);
       } else {
-        // If the time is in the past, send immediately
-        console.log(`⚠️ Reminder time is in the past, sending SMS immediately`);
-        termiiService.sendReminderNotification(reminder, phone)
-          .then(result => {
-            if (result.success) {
-              console.log(`✅ SMS sent immediately for reminder ${reminder._id}`);
-              Reminder.findByIdAndUpdate(reminder._id, { notified: true })
-                .catch(err => console.error('Error updating notification status:', err));
-            } else {
-              console.error(`❌ Failed to send SMS immediately for reminder ${reminder._id}:`, result.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error sending SMS:', error);
-          });
+        console.log(`⚠️ Reminder time is in the past, SMS will not be sent automatically`);
       }
     }
 
-    // ⭐ NEW: Send email if email notification is enabled
+    // ⭐ MODIFIED: DO NOT send email automatically on creation
+    // Email will only be sent when the user manually triggers it
     if (notificationMode === 'email' || notificationMode === 'both') {
       if (email) {
-        // Send email immediately (or you could schedule it)
-        emailService.sendReminderEmail(reminder, email)
-          .then(result => {
-            if (result.success) {
-              console.log(`✅ Email sent for reminder ${reminder._id}`);
-              // Update reminder to indicate email was sent
-              Reminder.findByIdAndUpdate(reminder._id, { emailSent: true })
-                .catch(err => console.error('Error updating email status:', err));
-            } else {
-              console.error(`❌ Failed to send email for reminder ${reminder._id}:`, result.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error sending email:', error);
-          });
-        emailScheduled = true;
+        console.log(`📧 Email notification configured for reminder ${reminder._id} - will send when triggered`);
+        // We just log it - no automatic sending
+        emailScheduled = false; // Changed to false
       }
     }
 
     res.status(201).json({
       success: true,
       data: reminder,
-      message: smsScheduled || emailScheduled 
-        ? `Reminder created. ${smsScheduled ? 'SMS ' : ''}${emailScheduled ? 'Email ' : ''}notification${smsScheduled && emailScheduled ? 's' : ''} will be sent.` 
+      message: smsScheduled 
+        ? `Reminder created. SMS notification will be sent at the scheduled time.` 
         : 'Reminder created successfully.',
       smsScheduled,
-      emailScheduled
+      emailScheduled: false // Always false on creation
     });
   } catch (error) {
     console.error(error);
@@ -215,9 +189,7 @@ const updateReminder = async (req, res) => {
 
     // Reschedule SMS if needed
     const hasSms = (reminder.notificationMode === 'sms' || reminder.notificationMode === 'both');
-    const hasEmail = (reminder.notificationMode === 'email' || reminder.notificationMode === 'both');
     const hasPhone = reminder.phone !== null;
-    const hasEmailAddress = reminder.email !== null;
     const isFuture = new Date(reminder.datetime) > new Date();
     const notCompleted = !reminder.completed;
 
@@ -231,21 +203,10 @@ const updateReminder = async (req, res) => {
       console.log(`🗑️ Cancelled SMS job for reminder ${reminder._id}`);
     }
 
-    // ⭐ NEW: Send email if updated to include email
-    if (hasEmail && hasEmailAddress && notCompleted) {
-      emailService.sendReminderEmail(reminder, reminder.email)
-        .then(result => {
-          if (result.success) {
-            console.log(`✅ Email sent for updated reminder ${reminder._id}`);
-            Reminder.findByIdAndUpdate(reminder._id, { emailSent: true })
-              .catch(err => console.error('Error updating email status:', err));
-          } else {
-            console.error(`❌ Failed to send email for updated reminder ${reminder._id}:`, result.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error sending email:', error);
-        });
+    // ⭐ MODIFIED: DO NOT send email automatically on update
+    // Email will only be sent when the user manually triggers it
+    if (hasSms && hasPhone && isFuture && notCompleted) {
+      console.log(`📧 Email configured for reminder ${reminder._id} - will send when triggered`);
     }
 
     res.status(200).json({
@@ -411,7 +372,6 @@ const sendReminderSms = async (req, res) => {
   }
 };
 
-// ⭐ NEW: Manually send email notification for a reminder
 // @desc    Manually send email notification for a reminder
 // @route   POST /api/reminders/:id/send-email
 // @access  Private
